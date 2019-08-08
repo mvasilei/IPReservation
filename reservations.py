@@ -9,7 +9,7 @@ import getpass
 import json
 import string
 
-def reserve(innerr,subnet,size):
+def reserve(innerr, subnet, size):
     if 'result' in innerr:
         # If the next available's IP forth octet is less than subnet+number of IPs we want to reserve then query infoblox
         if int(innerr['result']['ips'][0].split('.')[3]) > subnet and int(innerr['result']['ips'][0].split('.')[3]) < subnet+11:
@@ -46,8 +46,42 @@ def reserve(innerr,subnet,size):
                         innerdata = '{"ipv4addr":' + address + ' ,"mac":"00:00:00:00:00:00"}'
                         print(innerdata)
 
-                        # Currently reservation request is commented out and only printing with as the print statement above the addresses that are to be added
-                        # response = requests.post(ADDRESS + 'fixedaddress', headers=headers, params=params, data=data, verify=False, cookies=cookies)
+                        ''' Currently reservation request is commented out and only printing with as the print statement above the addresses that are to be added
+                        response = requests.post(ADDRESS + 'fixedaddress', headers=headers, params=innerparams2, data=innerdata, verify=False, cookies=cookies)
+                        
+                        # If the request returns error exit the program
+                        if response.status_code != requests.codes.ok:
+                            exit_msg = 'Error {} script terminated: {}'
+                            sys.exit(exit_msg.format(r.status_code, r.reason))'''
+
+
+def reservelast(dict):
+    params = (
+        ('_return_fields+', 'ipv4addr,mac'),
+        ('_return_as_object', '1'),
+    )
+
+    network = dict['network'].split('.')
+    for i in range (250, 255):
+        address = network[0] + '.' + network[1] + '.' + network[2] + '.' + str(i)
+
+        r = requests.get(ADDRESS + 'search?address=' + address, cookies=cookies, verify=False)
+
+        response = r.json()
+
+        if len(response) < 3:
+            data = '{"ipv4addr":' + address + ' ,"mac":"00:00:00:00:00:00"}'
+            print(innerdata)
+
+        '''    response = requests.post(ADDRESS + 'fixedaddress', headers=headers, params=params, data=data,
+                                     verify=False, cookies=cookies)
+            
+            
+            # If the request returns error exit the program
+            if response.status_code != requests.codes.ok:
+                exit_msg = 'Error {} script terminated: {}'
+                sys.exit(exit_msg.format(r.status_code, r.reason))
+            '''
 
 cookies = ''
 
@@ -61,7 +95,7 @@ params = (
 )
 
 # Send a request to get all subnets in '147.188.0.0/16'
-response = requests.get(ADDRESS + 'network', params=params, verify=False, auth=('USER', 'PASSWD'))
+response = requests.get(ADDRESS + 'network', params=params, verify=False, auth=('USER', 'PASS'))
 
 # If the request returns error exit the program
 if response.status_code != requests.codes.ok:
@@ -86,17 +120,18 @@ params = (
 
 data = '{"num":1}'
 
-# For every network in the /16 find the next available IP
 for dict in r:
 
+    # For every network in the /16 find the next available IP
     response = requests.post(ADDRESS + dict['_ref'], headers=headers, params=params, data=data, verify=False, cookies=cookies)
     innerr = response.json()
 
+
     # For /24 reserve the first 10 for greater prefixes the first 4
     if dict['network'].split('/')[1] == '24':
+        reservelast(dict)
         if 'result' in innerr:
-            reserve(innerr, 0, 10)
-
+            reservefirst(innerr, 0, 10)
     else:
         # The number of subnets is calculated as 2 exponsed to the difference on /24 - more specific prefix
         exponent = 2 ** (int(dict['network'].split('/')[1]) - 24)
